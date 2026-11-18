@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<!--
+  index.html - a web page that USES the Library API.
+
+  This page is just another client, like client.py. It never touches the
+  database: it only sends HTTP requests to /api/books with fetch() and
+  shows the JSON it gets back. Every request also appears in the "API log".
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Library - a client of the Library API</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📚</text></svg>">
+  <style>
+    :root {
+      --paper: #f6f3ec;
+      --card: #fffdf9;
+      --ink: #22201c;
+      --muted: #6b665c;
+      --line: #e4ddcf;
+      --accent: #1f5f4a;
+      --code-bg: #f1ece1;
+      --get: #2457c5;
+      --post: #1d7a3e;
+      --put: #a85507;
+      --delete: #b42318;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+      --serif: Georgia, "Times New Roman", serif;
+    }
+    * { box-sizing: border-box; }
+    html { font-size: 17px; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.5;
+    }
+    header, main { max-width: 1440px; margin: 0 auto; padding-left: 32px; padding-right: 32px; }
+    header { padding-top: 28px; }
+    h1 { font-family: var(--serif); font-size: 2.1rem; margin: 0 0 6px; color: var(--accent); }
+    h2 { font-family: var(--serif); font-size: 1.3rem; margin: 0 0 12px; }
+    h2 small { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); font-weight: normal; margin-left: 6px; }
+    .intro { max-width: 62rem; margin: 0 0 12px; }
+    .intro code { font-family: var(--mono); font-size: 0.9em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+    .try { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0; color: var(--muted); font-size: 0.9rem; }
+    .try a {
+      font-family: var(--mono); font-size: 0.82rem; text-decoration: none; color: var(--ink);
+      background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px;
+    }
+    .try a:hover { border-color: var(--accent); color: var(--accent); }
+
+    main {
+      display: grid; grid-template-columns: minmax(0, 2fr) minmax(330px, 1fr);
+      gap: 20px; align-items: start; padding-top: 20px; padding-bottom: 40px;
+    }
+    @media (max-width: 1250px) {
+      html { font-size: 15px; }
+      header, main { padding-left: 18px; padding-right: 18px; }
+      main { grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); gap: 16px; }
+    }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+    .column { display: grid; gap: 20px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+    .muted { color: var(--muted); }
+    .small { font-size: 0.85rem; }
+
+    /* Forms and buttons */
+    .row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+    label { display: flex; flex-direction: column; gap: 3px; font-size: 0.8rem; color: var(--muted); }
+    input {
+      font: inherit; font-size: 1rem; color: var(--ink); background: #fff;
+      border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; width: 13rem; max-width: 100%;
+    }
+    input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+    label.narrow input { width: 6.5rem; }
+    button {
+      font: inherit; font-size: 0.95rem; cursor: pointer; border-radius: 8px; padding: 7px 14px;
+      border: 1px solid var(--accent); background: var(--accent); color: #fff;
+    }
+    button:hover { filter: brightness(1.12); }
+    button.secondary { background: transparent; color: var(--accent); }
+
+    /* The table of books */
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+    th {
+      text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--muted); padding: 6px 8px; border-bottom: 2px solid var(--line);
+    }
+    td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    td.num { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .table-wrap { overflow-x: auto; }
+    td.book .title { display: block; font-weight: 600; }
+    td.book .author { display: block; color: var(--muted); font-size: 0.9em; }
+    td.genre { white-space: nowrap; }
+    td.actions { white-space: nowrap; text-align: right; }
+    td.actions button { font-size: 0.8rem; padding: 3px 10px; background: transparent; color: var(--accent); }
+    td.actions button + button { margin-left: 6px; }
+    td.actions button.danger { color: var(--delete); border-color: var(--delete); }
+    .pill { font-size: 0.78rem; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+    .pill.available { background: #e2f0e6; color: #1d6b38; }
+    .pill.borrowed { background: #fbe8d5; color: #94480a; }
+    .message { min-height: 1.5em; margin: 12px 0 0; font-weight: 600; }
+    .message.ok { color: var(--post); }
+    .message.error { color: var(--delete); }
+
+    /* The API log */
+    .log-card { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; }
+    #log { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+    #log li { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+    #log li:first-child { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .log-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .log-line code { font-family: var(--mono); font-size: 0.88rem; word-break: break-all; }
+    .method { font: 700 0.72rem var(--mono); color: #fff; padding: 2px 7px; border-radius: 5px; }
+    .method.GET { background: var(--get); }
+    .method.POST { background: var(--post); }
+    .method.PUT { background: var(--put); }
+    .method.DELETE { background: var(--delete); }
+    .status { margin-left: auto; font: 700 0.8rem var(--mono); }
+    .status.ok { color: var(--post); }
+    .status.error { color: var(--delete); }
+    .log-label, summary { font-size: 0.75rem; color: var(--muted); margin-top: 6px; }
+    summary { cursor: pointer; }
+    pre {
+      font: 0.8rem/1.45 var(--mono); background: var(--code-bg); border-radius: 8px;
+      padding: 8px 10px; margin: 4px 0 0; max-height: 300px; overflow: auto;
+      white-space: pre-wrap; word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📚 The Library</h1>
+    <p class="intro">
+      This page is a <b>client</b> of the Library API. It never opens the database: everything
+      you see comes from HTTP requests to <code>/api/books</code>, the same API that
+      <code>client.py</code> uses. Every request it sends appears in the <b>API log</b>.
+    </p>
+    <p class="try">
+      Open in a new tab:
+      <a href="/api" target="_blank">/api</a>
+      <a href="/api/books" target="_blank">/api/books</a>
+      <a href="/api/books/1" target="_blank">/api/books/1</a>
+      <a href="/api/books?author=orwell" target="_blank">/api/books?author=orwell</a>
+      <a href="/api/books?genre=fantasy" target="_blank">/api/books?genre=fantasy</a>
+      <a href="/api/books/999" target="_blank">/api/books/999</a>
+    </p>
+  </header>
+
+  <main>
+    <div class="column">
+      <section class="card">
+        <h2>Books <small>GET /api/books</small></h2>
+        <form id="filter-form" class="row">
+          <label>Author contains <input id="filter-author" placeholder="e.g. orwell"></label>
+          <label>Genre <input id="filter-genre" placeholder="e.g. fantasy"></label>
+          <button type="submit">Search</button>
+          <button type="button" id="show-all" class="secondary">Show all</button>
+        </form>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Title / Author</th><th>Year</th><th>Genre</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody id="book-rows"></tbody>
+          </table>
+        </div>
+        <p id="book-count" class="muted small"></p>
+      </section>
+
+      <section class="card">
+        <h2>Add a book <small>POST /api/books</small></h2>
+        <form id="add-form" class="row">
+          <label>Title <input id="new-title"></label>
+          <label>Author <input id="new-author"></label>
+          <label class="narrow">Year <input id="new-year" type="number"></label>
+          <label>Genre <input id="new-genre"></label>
+          <button type="submit">Add book</button>
+        </form>
+        <p id="add-message" class="message"></p>
+        <p class="muted small">
+          This form doesn't check anything itself. Leave a field empty, or use a year in the
+          future, and see how the <b>API</b> refuses the data and explains why.
+        </p>
+      </section>
+    </div>
+
+    <section class="card log-card">
+      <h2>API log</h2>
+      <p class="muted small">
+        Every request this page sends, newest first. You can also see them in your
+        browser's developer tools (F12, then the Network tab).
+      </p>
+      <ol id="log"></ol>
+    </section>
+  </main>
+
+  <script>
+    // Where the API lives. This page comes from the same server (app.py),
+    // so "/api/books" is enough: no need to write "http://localhost:8000".
+    const API = "/api/books";
+
+    const bookRows = document.getElementById("book-rows");
+    const bookCount = document.getElementById("book-count");
+    const filterForm = document.getElementById("filter-form");
+    const filterAuthor = document.getElementById("filter-author");
+    const filterGenre = document.getElementById("filter-genre");
+    const addForm = document.getElementById("add-form");
+    const addMessage = document.getElementById("add-message");
+    const log = document.getElementById("log");
+
+
+    // -------------------------------------------------------------------------
+    // Talking to the API
+    // -------------------------------------------------------------------------
+
+    // Send one request to the API and return its answer.
+    //   method: "GET", "POST", "PUT" or "DELETE"
+    //   data:   (optional) an object to send as JSON
+    async function callApi(method, url, data) {
+      const options = { method: method, headers: {} };
+      if (data !== undefined) {
+        options.headers["Content-Type"] = "application/json";
+        options.body = JSON.stringify(data);  // object -> JSON text
+      }
+
+      let response;
+      try {
+        response = await fetch(url, options);  // send the request and wait for the answer
+      } catch (error) {
+        addToLog(method, url, data, null, { error: "Could not reach the server. Is app.py running?" });
+        return { ok: false, body: null };
+      }
+
+      // JSON text -> object
+      const body = await response.json().catch(() => ({ error: "The server did not answer with JSON" }));
+      addToLog(method, url, data, response, body);
+      return { ok: response.ok, body: body };
+    }
+
+
+    // -------------------------------------------------------------------------
+    // The list of books
+    // -------------------------------------------------------------------------
+
+    // GET /api/books, adding ?author=...&genre=... when the filters are filled in
+    async function loadBooks() {
+      const params = new URLSearchParams();
+      if (filterAuthor.value.trim() !== "") params.set("author", filterAuthor.value.trim());
+      if (filterGenre.value.trim() !== "") params.set("genre", filterGenre.value.trim());
+      const query = params.toString();
+      const url = query ? `${API}?${query}` : API;
+
+      const result = await callApi("GET", url);
+      if (result.ok) showBooks(result.body);
+    }
+
+    function showBooks(books) {
+      bookRows.replaceChildren();  // remove the old rows
+      for (const book of books) {
+        const row = document.createElement("tr");
+        addCell(row, book.id, "num");
+        const titleAndAuthor = document.createElement("div");
+        const title = document.createElement("span");
+        title.className = "title";
+        title.textContent = book.title;  // textContent shows text as text, never as HTML
+        const author = document.createElement("span");
+        author.className = "author";
+        author.textContent = book.author;
+        titleAndAuthor.append(title, author);
+        addCell(row, titleAndAuthor, "book");
+        addCell(row, book.year, "num");
+        addCell(row, book.genre ?? "–", "genre");
+
+        const status = document.createElement("span");
+        status.className = book.available ? "pill available" : "pill borrowed";
+        status.textContent = book.available ? "Available" : "Borrowed";
+        addCell(row, status);
+
+        const actions = document.createElement("td");
+        actions.className = "actions";
+        actions.append(
+          makeButton(book.available ? "Borrow" : "Return", `PUT ${API}/${book.id}`, () => toggleAvailable(book)),
+          makeButton("Delete", `DELETE ${API}/${book.id}`, () => deleteBook(book), "danger"),
+        );
+        row.append(actions);
+        bookRows.append(row);
+      }
+      bookCount.textContent = books.length === 1 ? "1 book" : `${books.length} books`;
+    }
+
+    function addCell(row, content, className) {
+      const cell = document.createElement("td");
+      if (content instanceof Node) cell.append(content);
+      else cell.textContent = content;
+      if (className) cell.className = className;
+      row.append(cell);
+    }
+
+    function makeButton(label, request, onClick, className) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = label;
+      button.title = "Sends " + request;
+      if (className) button.className = className;
+      button.addEventListener("click", onClick);
+      return button;
+    }
+
+    // PUT /api/books/<id>. PUT replaces the whole book, so we send every
+    // field, with "available" switched to the opposite value.
+    async function toggleAvailable(book) {
+      await callApi("PUT", `${API}/${book.id}`, {
+        title: book.title,
+        author: book.author,
+        year: book.year,
+        genre: book.genre,
+        available: !book.available,
+      });
+      loadBooks();
+    }
+
+    // DELETE /api/books/<id>
+    async function deleteBook(book) {
+      await callApi("DELETE", `${API}/${book.id}`);
+      loadBooks();
+    }
+
+    filterForm.addEventListener("submit", (event) => {
+      event.preventDefault();  // stop the browser from reloading the page
+      loadBooks();
+    });
+
+    document.getElementById("show-all").addEventListener("click", () => {
+      filterForm.reset();
+      loadBooks();
+    });
+
+
+    // -------------------------------------------------------------------------
+    // Adding a book: POST /api/books
+    // -------------------------------------------------------------------------
+
+    addForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const newBook = {
+        title: document.getElementById("new-title").value,
+        author: document.getElementById("new-author").value,
+      };
+      const year = document.getElementById("new-year").value;
+      const genre = document.getElementById("new-genre").value;
+      if (year !== "") newBook.year = Number(year);
+      if (genre !== "") newBook.genre = genre;
+
+      const result = await callApi("POST", API, newBook);
+      if (result.ok) {
+        showMessage(`Added "${result.body.title}" with id ${result.body.id}.`, "ok");
+        addForm.reset();
+        loadBooks();
+      } else if (result.body) {
+        showMessage("The API said: " + result.body.error, "error");
+      }
+    });
+
+    function showMessage(text, kind) {
+      addMessage.textContent = text;
+      addMessage.className = "message " + kind;
+    }
+
+
+    // -------------------------------------------------------------------------
+    // The API log: shows each request and the answer it got
+    // -------------------------------------------------------------------------
+
+    function addToLog(method, url, sent, response, received) {
+      const item = document.createElement("li");
+
+      const line = document.createElement("div");
+      line.className = "log-line";
+      const badge = document.createElement("span");
+      badge.className = "method " + method;
+      badge.textContent = method;
+      const path = document.createElement("code");
+      path.textContent = url;
+      const status = document.createElement("span");
+      if (response) {
+        status.className = "status " + (response.ok ? "ok" : "error");
+        status.textContent = `${response.status} ${response.statusText}`;
+      } else {
+        status.className = "status error";
+        status.textContent = "no answer";
+      }
+      line.append(badge, path, status);
+      item.append(line);
+
+      if (sent !== undefined) {
+        const label = document.createElement("div");
+        label.className = "log-label";
+        label.textContent = "Sent:";
+        const pre = document.createElement("pre");
+        pre.textContent = JSON.stringify(sent, null, 2);
+        item.append(label, pre);
+      }
+
+      const text = JSON.stringify(received, null, 2);
+      const details = document.createElement("details");
+      const summary = document.createElement("summary");
+      summary.textContent = Array.isArray(received)
+        ? `Received: a list of ${received.length} books (click to open)`
+        : "Received:";
+      const pre = document.createElement("pre");
+      pre.textContent = text;
+      details.append(summary, pre);
+      details.open = text.split("\n").length <= 20;  // open it, unless it's very long
+      item.append(details);
+
+      log.prepend(item);
+      while (log.children.length > 15) log.lastElementChild.remove();
+    }
+
+
+    // When the page opens, ask the API for the books.
+    loadBooks();
+  </script>
+</body>
+</html>
